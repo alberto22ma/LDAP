@@ -1,42 +1,65 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
+
 import ldap
-import csv
-import ldap.modlist as modlist
+from ldap import modlist
 import getpass
+import csv
 
-#Abrir fichero
-alumnos = open("usuarios.csv")
-datosalumnos = csv.load(alumnos)
-
-servidor='ldap://rajoy.albertomoreno.gonzalonazareno.org:389'
+# Values #
 conection = "ldap://172.22.200.118:389/"
 file_name = 'usuarios.csv'
-dom = 'dc=albertomoreno,dc=gonzalonazareno,dc=org'
+dom = 'dc=rajoy,dc=albertomoreno,dc=gonzalonazareno,dc=org'
 uidNumberInitial = 2000
-gidNumber = 2005
+gidNumber = 2002
 
-#Solicitamos la identificacion para el administrador de ldap
-password = getpass.getpass("Identificacion administrador LDAP: ")
 
-for i in datos["usuarios"]:
-        dn="uid=%s,ou=People,dc=albertomoreno,dc=gonzalonazareno,dc=org" % str(i["usuario"])
-        attrs = {}
-        attrs['objectclass'] = ['top','posixAccount','inetOrgPerson','ldapPublicKey']
-        attrs['cn'] = str(i["nombre"])
-        attrs['uid'] = str(i["usuario"])
-        attrs['sn'] = str(i["apellidos"])
-        attrs['uidNumber'] = str(uidNumber)
-        attrs['gidNUmber'] = str(gidNumber)
-        attrs['mail'] = str(i["correo"])
-        attrs['sshPublicKey'] = "ssh-rsa" + str(i["clave"])
-        attrs['homeDirectory'] = ['/home/%s' % (str(i["usuario"]))]
-        attrs['loginShell'] = ['/bin/bash']
-        ldif = modlist.addModlist(attrs)
-        uri.add_s(dn,ldif)
-        uidNumber = uidNumber + 1
+user = 'admin'
+passwd = getpass.getpass('Contraseña del usuario %s LDAP: ' % user)
 
-uri.unbind_s()
-alumnos.close()
+with open('usuarios.csv') as File:
+    reader = csv.reader(File, delimiter=',', quotechar=',',
+                        quoting=csv.QUOTE_MINIMAL)
 
+try:
+	bind = "cn=%s,%s" % (user, dom)
+	l = ldap.initialize(conection)
+	l.simple_bind_s(bind,passwd)
+
+	for i in reader['usuarios']:
+		nombre = i['nombre'].encode('utf8')
+		apellidos = i['apellidos'].encode('utf8')
+		uid = str(i['usuario'])
+		attrs = {}
+		dn="uid=%s,ou=People,dc=rajoy,dc=albertomoreno,dc=gonzalonazareno,dc=org" % str(i["usuario"])
+		attrs['objectClass'] = ['top', 'posixAccount', 'inetOrgPerson', 'ldapPublicKey']
+		attrs['uid'] = uid
+		attrs['cn'] = nombre
+		attrs['sn'] = apellidos
+		attrs['mail'] = str(i['correo'])
+		attrs['uidNumber'] = str(uidNumberInitial)
+		attrs['gidNumber'] = str(gidNumber)
+		attrs['homeDirectory'] = '/home/%s' % uid
+		attrs['loginShell'] = '/bin/bash'
+		attrs['sshPublicKey'] = str(i['clave'])
+		ldif = modlist.addModlist(attrs)
+		try:
+			l.add_s(dn,ldif)
+			uidNumber = uidNumber + 1
+			print 'Usuario %s insertado.' % uid 
+		except:
+			print "El usuario %s ya existe." % str(i["usuario"])
+	for i in reader["equipos"]:
+		dn="uid=%s,ou=Computers,dc=rajoy,dc=albertomoreno,dc=gonzalonazareno,dc=org" % str(i["ipv4"])
+		attrs1 = {}
+		attrs1['objectclass'] = ['top','device','ldapPublicKey','ipHost']
+		attrs1['cn'] = str(i["hostname"])
+		attrs1['ipHostNumber'] = str(i["ipv4"])
+		attrs1['sshPublicKey'] = str(i["clave"])
+		ldif = modlist.addModlist(attrs1)
+		l.add_s(dn,ldif)
+		print 'Computer %s insertado.' % str(i["ipv4"])
+	l.unbind_s()
+except ldap.LDAPError, e:
+print 'ERROR: ' + e[0]['desc']
 
