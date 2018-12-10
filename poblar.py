@@ -61,5 +61,5 @@ try:
 		print 'Computer %s insertado.' % str(i["ipv4"])
 	l.unbind_s()
 except ldap.LDAPError, e:
-print 'ERROR: ' + e[0]['desc']
+	print 'ERROR: ' + e[0]['desc']
 
